@@ -206,25 +206,44 @@ class _InputPageState extends State<InputPage> {
                     ),
 
                     ElevatedButton(
-                      onPressed: () {
-                        if (machineCtrl.text.isEmpty) return;
-                        if (wins > total) return;
+  onPressed: () {
+    if (machineCtrl.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("機体名を入力してください")),
+      );
+      return;
+    }
 
-                        Hive.box<MatchRecord>('records').add(
-                          MatchRecord(
-                            date: date,
-                            machine: machineCtrl.text,
-                            wins: wins,
-                            losses: losses,
-                          ),
-                        );
+    if (wins > total) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("勝ち数は試合数以下にしてください")),
+      );
+      return;
+    }
 
-                        totalCtrl.clear();
-                        winCtrl.clear();
-                        setState(() {});
-                      },
-                      child: const Text("保存"),
-                    )
+    Hive.box<MatchRecord>('records').add(
+      MatchRecord(
+        date: date,
+        machine: machineCtrl.text,
+        wins: wins,
+        losses: losses,
+      ),
+    );
+
+    totalCtrl.clear();
+    winCtrl.clear();
+
+    setState(() {});
+
+    /// 🔥 これを追加
+    ScaffoldMessenger.of(context)
+  ..clearSnackBars()
+  ..showSnackBar(
+    const SnackBar(content: Text("保存しました")),
+  );
+  },
+  child: const Text("保存"),
+)
                   ],
                 ),
               ),
@@ -255,17 +274,64 @@ class _HistoryPageState extends State<HistoryPage> {
       appBar: AppBar(title: const Text("履歴")),
       body: ListView.builder(
         itemCount: list.length,
-        itemBuilder: (_, i) {
+        itemBuilder: (context, i) {
           final r = list[i];
+          return Dismissible(
+  key: Key(r.key.toString()),
+  direction: DismissDirection.endToStart,
 
-          return Card(
-            child: ListTile(
-              title: Text(r.machine),
-              subtitle: Text(
-                  "${r.date.toString().split(" ")[0]} 試合:${r.total} 勝:${r.wins}"),
-              onTap: () => editDialog(r),
-            ),
-          );
+  background: Container(
+    alignment: Alignment.centerRight,
+    padding: const EdgeInsets.only(right: 20),
+    color: Colors.red,
+    child: const Icon(Icons.delete, color: Colors.white),
+  ),
+
+  confirmDismiss: (_) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("確認"),
+        content: Text(
+          "${r.date.toString().split(" ")[0]}の${r.machine}を削除しますか？",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("キャンセル"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("削除"),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  },
+
+  onDismissed: (_) {
+    r.delete();
+    setState(() {});
+
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        const SnackBar(content: Text("削除しました")),
+      );
+  },
+
+  child: Card(
+    child: ListTile(
+      title: Text(r.machine),
+      subtitle: Text(
+        "${r.date.toString().split(" ")[0]} 試合:${r.total} 勝:${r.wins}",
+      ),
+      onTap: () => editDialog(r),
+    ),
+  ),
+);
+          
         },
       ),
     );
@@ -301,22 +367,42 @@ class _HistoryPageState extends State<HistoryPage> {
         ),
         actions: [
           ElevatedButton(
-            onPressed: () {
-              final total = int.tryParse(totalCtrl.text) ?? r.total;
-              final wins = int.tryParse(winCtrl.text) ?? r.wins;
+  onPressed: () {
+    final total = int.tryParse(totalCtrl.text) ?? r.total;
+    final wins = int.tryParse(winCtrl.text) ?? r.wins;
 
-              if (wins > total) return;
+    if (machineCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(this.context).showSnackBar(
+        const SnackBar(content: Text("機体名を入力してください")),
+      );
+      return;
+    }
 
-              r.machine = machineCtrl.text;
-              r.wins = wins;
-              r.losses = total - wins;
+    if (wins > total) {
+  ScaffoldMessenger.of(this.context).showSnackBar(
+    const SnackBar(content: Text("勝ち数は試合数以下にしてください")),
+  );
+  return;
+}
 
-              r.save();
-              setState(() {});
-              Navigator.pop(context);
-            },
-            child: const Text("保存"),
-          )
+    r.machine = machineCtrl.text;
+    r.wins = wins;
+    r.losses = total - wins;
+
+    r.save();
+
+    setState(() {});
+    Navigator.pop(context);
+
+    /// 🔥 これ追加（Dialog外のcontextで表示）
+    ScaffoldMessenger.of(this.context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        const SnackBar(content: Text("更新しました")),
+      );
+  },
+  child: const Text("保存"),
+)
         ],
       ),
     );
